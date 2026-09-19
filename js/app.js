@@ -6,7 +6,7 @@
 
 /* ───────── 状态 ───────── */
 const defaultState = () => ({
-  meta: { type: "样品改动", spu: "", material: "", channel: "", product: "", date: today(), dept: "产品设计部" },
+  meta: { type: "样品改动", newCode: "", spu: "", material: "", channel: "", product: "", date: today(), dept: "产品设计部" },
   newChanges: [],           // [{id, date, text}]
   sections: [],             // [{id, category, entries:[{id,title,desc,photos:[{id,src,caption}]}]}]
   sdHtml: ""                // 山东评审 HTML
@@ -65,7 +65,14 @@ async function loadDraft() {
       const r = tx.objectStore(STORE).get("current");
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     });
-    if (v && typeof v === "object") state = Object.assign(defaultState(), v);
+    if (v && typeof v === "object") {
+      state = Object.assign(defaultState(), v);
+      /* 兼容旧草稿：原来只有 spu 字段，迁移为新品号 */
+      if (state.meta && state.meta.spu && !state.meta.newCode) {
+        state.meta.newCode = state.meta.spu;
+        state.meta.spu = "";
+      }
+    }
   } catch (e) { console.warn("读取草稿失败", e); }
 }
 async function clearDraft() {
@@ -89,7 +96,7 @@ document.addEventListener("click", e => {
 });
 function updateStepDone() {
   const done = {
-    meta: !!(state.meta.spu || state.meta.product),
+    meta: !!(state.meta.newCode || state.meta.spu || state.meta.product),
     shanghai: state.sections.some(s => s.entries.length),
     shandong: !!state.sdHtml
   };
@@ -98,7 +105,7 @@ function updateStepDone() {
 
 /* ───────── 第1步：产品信息 ───────── */
 function bindMeta() {
-  const map = { mType: "type", mSpu: "spu", mMaterial: "material", mChannel: "channel", mProduct: "product", mDate: "date", mDept: "dept" };
+  const map = { mType: "type", mNewCode: "newCode", mSpu: "spu", mMaterial: "material", mChannel: "channel", mProduct: "product", mDate: "date", mDept: "dept" };
   for (const [id, key] of Object.entries(map)) {
     const el = document.getElementById(id);
     el.value = state.meta[key] || "";
@@ -579,16 +586,27 @@ function renderPreviewDebounced() { clearTimeout(previewTimer); previewTimer = s
 
 function buildReportTitle() {
   const m = state.meta;
-  const left = [m.spu, m.material].filter(Boolean).join("#");
-  const right = m.product || "产品名称";
-  const mid = left ? left + "-" : "";
-  return `【${m.type || "样品改动"}】${mid}${right} 改动报告${fmtDate(m.date)}`;
+  const code = [m.newCode, m.spu].filter(Boolean).join("#"); // 新品号#SPU，多个SPU用-已在输入时体现
+  const mat = m.material || "";
+  const chan = m.channel ? `-[${m.channel}]` : "";
+  const prod = m.product || "产品名称";
+  let body = "";
+  if (code) body += code;
+  if (mat) body += (body ? " " : "") + mat;
+  body += chan + prod; // 材质颜色-[渠道]产品名称
+  return `【${m.type || "样品改动"}】${body || prod} 改动报告 ${fmtDate(m.date)}`;
 }
 function buildFileName(ext) {
   const m = state.meta;
-  const left = [m.spu, m.material].filter(Boolean).join("#");
-  const chan = m.channel ? `[${m.channel}]` : "";
-  let name = `【${m.type || "样品改动"}】${left ? left + "-" : ""}${chan}${m.product || "产品名称"} 改动报告${fmtDate(m.date)}`;
+  const code = [m.newCode, m.spu].filter(Boolean).join("#");
+  const mat = m.material || "";
+  const chan = m.channel ? `-[${m.channel}]` : "";
+  const prod = m.product || "产品名称";
+  let body = "";
+  if (code) body += code;
+  if (mat) body += (body ? " " : "") + mat;
+  body += chan + prod;
+  let name = `【${m.type || "样品改动"}】${body || prod} 改动报告${fmtDate(m.date)}`;
   return name.replace(/[\\/:*?"<>|]/g, "_") + ext;
 }
 
@@ -596,14 +614,10 @@ function renderPreview() {
   const m = state.meta;
   const parts = [];
   const hasShanghai = state.sections.some(s => s.entries.some(e => e.title || e.desc || e.photos.length));
-  const hasAny = state.newChanges.length || hasShanghai || state.sdHtml || m.spu || m.product;
+  const hasAny = state.newChanges.length || hasShanghai || state.sdHtml || m.newCode || m.spu || m.product;
 
   parts.push(`<p class="doc-title">${esc(buildReportTitle())}</p>`);
-  const subBits = [];
-  if (m.dept) subBits.push("部门：" + esc(m.dept));
-  if (m.channel) subBits.push("渠道：" + esc(m.channel));
-  subBits.push("日期：" + esc(fmtDate(m.date)));
-  parts.push(`<p class="doc-subtitle">${subBits.join("　｜　")}</p>`);
+  /* 部门/日期信息只在文档末尾表格中体现，标题下方不再重复显示 */
 
   if (state.newChanges.length) {
     parts.push(`<h2>新增改动</h2>`);
@@ -613,33 +627,38 @@ function renderPreview() {
     });
   }
 
+  const tableRows = [];
+
+  /* 上海评审——看样改动：每行一个类别 */
   if (hasShanghai) {
-    parts.push(`<h2>上海评审——看样改动</h2>`);
     state.sections.forEach(sec => {
       const entries = sec.entries.filter(e => e.title || e.desc || e.photos.length);
       if (!entries.length) return;
-      parts.push(`<h3>${esc(sec.category)}</h3>`);
+      const label = `上海评审<br>${esc(sec.category)}`;
+      const cells = [];
       entries.forEach((en, i) => {
-        if (en.title) parts.push(`<h4 style="margin:8pt 0 4pt;font-weight:bold;">${i + 1}. ${esc(en.title)}</h4>`);
-        if (en.desc) parts.push(`<p>${esc(en.desc).replace(/\n/g, "<br>")}</p>`);
+        const n = i + 1;
+        if (en.title) cells.push(`<p><b>${n}. ${esc(en.title)}</b></p>`);
+        if (en.desc) cells.push(`<p>${esc(en.desc).replace(/\n/g, "<br>")}</p>`);
         en.photos.forEach((ph, pi) => {
           const cap = ph.caption ? esc(ph.caption) : `图${pi + 1}`;
-          parts.push(`<figure><img src="${ph.src}" alt=""><figcaption>▲ ${cap}</figcaption></figure>`);
+          cells.push(`<figure><img src="${ph.src}" alt=""><figcaption>▲ ${cap}</figcaption></figure>`);
         });
       });
+      tableRows.push(`<tr><td class="doc-label">${label}</td><td class="doc-content" colspan="3">${cells.join("")}</td></tr>`);
     });
   }
 
+  /* 山东技术评审 */
   if (state.sdHtml) {
-    parts.push(`<h2>山东技术评审</h2>`);
-    parts.push(state.sdHtml);
+    tableRows.push(`<tr><td class="doc-label">山东技术评审</td><td class="doc-content" colspan="3">${state.sdHtml}</td></tr>`);
   }
 
-  if (m.dept || m.date) {
-    parts.push(`<table class="doc-meta-table">
-      <tr><td style="font-weight:bold;background:#f0f4f8;">部门</td><td>${esc(m.dept)}</td></tr>
-      <tr><td style="font-weight:bold;background:#f0f4f8;">日期</td><td>${esc(fmtDate(m.date))}</td></tr>
-    </table>`);
+  /* 部门 / 日期 */
+  tableRows.push(`<tr><td class="doc-label">部门</td><td class="doc-content">${esc(m.dept || "")}</td><td class="doc-label">日期</td><td class="doc-content">${esc(fmtDate(m.date))}</td></tr>`);
+
+  if (tableRows.length) {
+    parts.push(`<table class="doc-main-table">${tableRows.join("")}</table>`);
   }
 
   const box = document.getElementById("docPreview");
@@ -675,12 +694,13 @@ async function collectImages(root) {
   const jobs = [...imgs].map(img => new Promise(res => {
     const src = img.getAttribute("src") || "";
     if (!src.startsWith("data:")) { res(); return; }
+    if (map.has(src)) { res(); return; }
     const probe = new Image();
     probe.onload = () => {
       const { data, mime } = dataUrlToUint8(src);
       let w = probe.naturalWidth || 400, h = probe.naturalHeight || 300;
       if (w > MAX_IMG_W) { h = Math.round(h * MAX_IMG_W / w); w = MAX_IMG_W; }
-      map.set(img, { data, type: mimeToType(mime), w, h });
+      map.set(src, { data, type: mimeToType(mime), w, h });
       res();
     };
     probe.onerror = () => res();
@@ -707,7 +727,8 @@ function inlineRuns(node, fmt, imgMap) {
     const tag = n.tagName.toUpperCase();
     if (tag === "BR") { runs.push(new docx.TextRun({ break: 1 })); return; }
     if (tag === "IMG") {
-      const info = imgMap.get(n);
+      const src = n.getAttribute("src") || "";
+      const info = src ? imgMap.get(src) : undefined;
       if (info) runs.push(imageRun(info));
       return;
     }
@@ -749,8 +770,6 @@ function convertBlocks(root, imgMap) {
         const cls = el.className || "";
         const runs = inlineRuns(el, {}, imgMap);
         if (cls.includes("doc-title")) {
-          pushPara({ children: runs, alignment: docx.AlignmentType.CENTER, spacing: { after: 120 } });
-        } else if (cls.includes("doc-subtitle")) {
           pushPara({ children: runs, alignment: docx.AlignmentType.CENTER, spacing: { after: 240 } });
         } else if (cls.includes("doc-empty")) {
           /* skip */
@@ -779,7 +798,8 @@ function convertBlocks(root, imgMap) {
         const img = el.querySelector("img");
         const cap = el.querySelector("figcaption");
         if (img) {
-          const info = imgMap.get(img);
+          const src = img.getAttribute("src") || "";
+          const info = src ? imgMap.get(src) : undefined;
           if (info) pushPara({ children: [imageRun(info)], alignment: docx.AlignmentType.CENTER, spacing: { before: 120, after: 40 } });
         }
         if (cap) pushPara({ children: inlineRuns(cap, {}, imgMap), alignment: docx.AlignmentType.CENTER, spacing: { after: 160 } });
@@ -797,7 +817,8 @@ function convertBlocks(root, imgMap) {
         break;
       }
       case "IMG": {
-        const info = imgMap.get(el);
+        const src = el.getAttribute("src") || "";
+        const info = src ? imgMap.get(src) : undefined;
         if (info) pushPara({ children: [imageRun(info)], alignment: docx.AlignmentType.CENTER, spacing: { before: 120, after: 40 } });
         break;
       }
@@ -816,30 +837,71 @@ function convertBlocks(root, imgMap) {
 }
 
 function convertTable(tableEl, imgMap) {
+  const isMain = (tableEl.className || "").includes("doc-main-table");
+
+  /* 计算表格实际列数（考虑 colspan） */
+  let colCount = 0;
+  tableEl.querySelectorAll("tr").forEach(tr => {
+    let c = 0;
+    tr.querySelectorAll("td,th").forEach(td => c += parseInt(td.getAttribute("colspan") || "1", 10));
+    colCount = Math.max(colCount, c);
+  });
+  if (!colCount) colCount = 1;
+
+  /* 列宽：主表左侧标签列窄，其余内容列均分 */
+  const totalW = 9360;
+  let colWidths;
+  if (isMain && colCount >= 4) {
+    const labelW = 1800;
+    const contentW = Math.floor((totalW - labelW * 2) / (colCount - 2));
+    colWidths = [];
+    for (let i = 0; i < colCount; i++) {
+      colWidths.push((i === 0 || i === colCount - 2) ? labelW : contentW);
+    }
+  } else {
+    colWidths = Array(colCount).fill(Math.floor(totalW / colCount));
+  }
+
   const rows = [];
   tableEl.querySelectorAll("tr").forEach(tr => {
     const cells = [];
+    let colIdx = 0;
     tr.querySelectorAll("td,th").forEach(td => {
-      const paras = [];
-      const childEls = [...td.children].filter(c => /^(P|UL|OL|H[1-6])$/i.test(c.tagName));
-      if (childEls.length) {
-        childEls.forEach(p => paras.push(new docx.Paragraph({ children: inlineRuns(p, {}, imgMap) })));
+      const cs = parseInt(td.getAttribute("colspan") || "1", 10);
+      const rs = parseInt(td.getAttribute("rowspan") || "1", 10);
+
+      /* 用临时 div 复用 convertBlocks，完整支持段落/图片/嵌套表格。
+         如果单元格内没有块级元素，先把内容包成 <p>，避免纯文本/BR 丢失。 */
+      const hasBlock = [...td.children].some(c => /^(P|DIV|UL|OL|H[1-6]|FIGURE|TABLE|BLOCKQUOTE)$/i.test(c.tagName));
+      const tmp = document.createElement("div");
+      if (!hasBlock) {
+        const p = document.createElement("p");
+        [...td.childNodes].forEach(n => p.appendChild(n.cloneNode(true)));
+        tmp.appendChild(p);
       } else {
-        paras.push(new docx.Paragraph({ children: inlineRuns(td, {}, imgMap) }));
+        [...td.childNodes].forEach(n => tmp.appendChild(n.cloneNode(true)));
       }
+      const paras = convertBlocks(tmp, imgMap);
+
+      const w = colWidths.slice(colIdx, colIdx + cs).reduce((a, b) => a + b, 0);
+      const isLabel = td.classList.contains("doc-label");
       cells.push(new docx.TableCell({
         children: paras.length ? paras : [new docx.Paragraph({ children: [] })],
-        width: { size: Math.floor(9360 / Math.max(tr.querySelectorAll("td,th").length, 1)), type: docx.WidthType.DXA },
-        margins: { top: 60, bottom: 60, left: 100, right: 100 }
+        width: { size: w, type: docx.WidthType.DXA },
+        columnSpan: cs > 1 ? cs : undefined,
+        rowSpan: rs > 1 ? rs : undefined,
+        margins: { top: 80, bottom: 80, left: 120, right: 120 },
+        verticalAlign: isLabel ? docx.VerticalAlign.CENTER : docx.VerticalAlign.TOP
       }));
+      colIdx += cs;
     });
     if (cells.length) rows.push(new docx.TableRow({ children: cells, tableHeader: !!tr.querySelector("th") }));
   });
-  const isMeta = (tableEl.className || "").includes("doc-meta-table");
+
   return new docx.Table({
     rows,
-    width: { size: isMeta ? 5000 : 9360, type: docx.WidthType.DXA },
-    alignment: isMeta ? docx.AlignmentType.CENTER : docx.AlignmentType.LEFT
+    width: { size: totalW, type: docx.WidthType.DXA },
+    alignment: isMain ? docx.AlignmentType.CENTER : docx.AlignmentType.LEFT
   });
 }
 
@@ -918,6 +980,12 @@ document.getElementById("btnExportPdf").addEventListener("click", () => {
   renderPreview();
   if (document.getElementById("docPreview").querySelector(".doc-empty")) { toast("暂无可导出的内容", true); return; }
   toast("在打印窗口中选择「另存为 PDF」，并确认已选「彩色」+勾选「背景图形」");
+  /* 打印窗口「另存为 PDF」的默认文件名取自页面标题：打印前临时替换为文档标题，实现自动命名 */
+  const originalTitle = document.title;
+  const pdfName = buildFileName(".pdf").replace(/\.pdf$/i, "");
+  document.title = pdfName;
+  const restore = () => { document.title = originalTitle; window.removeEventListener("afterprint", restore); };
+  window.addEventListener("afterprint", restore);
   setTimeout(() => window.print(), 350);
 });
 

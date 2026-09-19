@@ -49,8 +49,12 @@
           </select>
         </label>
         <label class="field">
-          <span>新品号 / SPU</span>
-          <input id="mSpu" type="text" placeholder="例：Y01RR0002">
+          <span>新品号</span>
+          <input id="mNewCode" type="text" placeholder="例：M250298-5">
+        </label>
+        <label class="field">
+          <span>SPU</span>
+          <input id="mSpu" type="text" placeholder="例：Y12BT0168（多个用 - 连接）">
         </label>
         <label class="field">
           <span>材质颜色</span>
@@ -140,11 +144,11 @@
           <div class="photo-grid"></div>
           <div class="entry-photo-actions">
             <label class="btn ghost photo-btn">
-              📷 拍照 / 选图
+              🖼 选图
               <input type="file" accept="image/*" multiple class="photo-input">
             </label>
             <label class="btn ghost photo-btn cam-only">
-              📸 相机拍摄
+              📷 拍照
               <input type="file" accept="image/*" capture="environment" class="photo-input-cam">
             </label>
           </div>
