@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1f4e79">
+<title>家具改动报告工作台</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="manifest" href="manifest.webmanifest">
+</head>
+<body>
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-logo">🪑</span>
+      <div>
+        <h1>改动报告工作台</h1>
+        <p class="brand-sub">上海看样 · 山东评审 · 一键合并出报告</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn ghost" id="btnClearDraft" title="清空当前草稿">清空草稿</button>
+    </div>
+  </div>
+</header>
+
+<nav class="step-nav" id="stepNav">
+  <button class="step-btn active" data-step="meta"><span class="step-num">1</span><span>产品信息</span></button>
+  <button class="step-btn" data-step="shanghai"><span class="step-num">2</span><span>看样改动</span></button>
+  <button class="step-btn" data-step="shandong"><span class="step-num">3</span><span>山东评审</span></button>
+  <button class="step-btn" data-step="preview"><span class="step-num">4</span><span>合并导出</span></button>
+  <span class="save-hint" id="saveHint"></span>
+</nav>
+
+<main class="app-main">
+
+  <!-- ═══════════ 第1步：产品信息 ═══════════ -->
+  <section class="step-panel active" id="panel-meta">
+    <div class="card">
+      <h2 class="card-title">报告基本信息</h2>
+      <p class="card-desc">填写后将自动生成报告标题与文件名，格式参照部门改动报告规范。</p>
+      <div class="form-grid">
+        <label class="field">
+          <span>报告类型</span>
+          <select id="mType">
+            <option value="样品改动">样品改动</option>
+            <option value="大货改动">大货改动</option>
+            <option value="重新打样">重新打样</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>新品号 / SPU</span>
+          <input id="mSpu" type="text" placeholder="例：Y01RR0002">
+        </label>
+        <label class="field">
+          <span>材质颜色</span>
+          <input id="mMaterial" type="text" placeholder="例：橡木原木色">
+        </label>
+        <label class="field">
+          <span>渠道</span>
+          <input id="mChannel" type="text" placeholder="例：线上 / 线下（可留空）">
+        </label>
+        <label class="field">
+          <span>产品名称</span>
+          <input id="mProduct" type="text" placeholder="例：凯旋门岩板餐桌">
+        </label>
+        <label class="field">
+          <span>报告日期</span>
+          <input id="mDate" type="date">
+        </label>
+        <label class="field">
+          <span>部门</span>
+          <input id="mDept" type="text" value="产品设计部">
+        </label>
+      </div>
+    </div>
+    <div class="card">
+      <h2 class="card-title">新增改动（大货 / 重新打样）</h2>
+      <p class="card-desc">最新改动会呈现在最前端，标题自动附上日期。首次编写可跳过。</p>
+      <div class="new-change-add">
+        <input id="ncDate" type="date">
+        <textarea id="ncContent" rows="3" placeholder="填写新增的改动内容：说明清楚是下一批大货更改还是马上更改（如有具体更改批次请附上）"></textarea>
+        <button class="btn primary" id="btnAddNewChange">＋ 添加新增改动</button>
+      </div>
+      <div id="newChangeList" class="new-change-list"></div>
+    </div>
+    <div class="step-footer">
+      <button class="btn primary next-step" data-goto="shanghai">下一步：看样改动 →</button>
+    </div>
+  </section>
+
+  <!-- ═══════════ 第2步：看样改动 ═══════════ -->
+  <section class="step-panel" id="panel-shanghai">
+    <div class="card">
+      <div class="card-head-row">
+        <div>
+          <h2 class="card-title">上海看样改动</h2>
+          <p class="card-desc">按改动类别分节记录：每条改动可拍照添加图片，并为每张图片配文字说明，图文一一关联。</p>
+        </div>
+        <button class="btn primary" id="btnAddSection">＋ 添加改动类别</button>
+      </div>
+
+      <div id="sectionList" class="section-list"></div>
+
+      <template id="tplSection">
+        <div class="sh-section">
+          <div class="sh-section-head">
+            <label class="field inline">
+              <span>类别</span>
+              <select class="sec-category">
+                <option>实木改动</option>
+                <option>软包改动</option>
+                <option>五金改动</option>
+                <option>结构改动</option>
+                <option>其他改动</option>
+              </select>
+            </label>
+            <div class="row-actions">
+              <button class="btn icon up" title="上移">↑</button>
+              <button class="btn icon down" title="下移">↓</button>
+              <button class="btn icon danger del-section" title="删除该类别">✕</button>
+            </div>
+          </div>
+          <div class="entry-list"></div>
+          <button class="btn ghost add-entry">＋ 添加一条改动</button>
+        </div>
+      </template>
+
+      <template id="tplEntry">
+        <div class="entry">
+          <div class="entry-head">
+            <input class="entry-title" type="text" placeholder="改动标题（例：大货要求滑轨使用黑色阻尼滑轨）">
+            <div class="row-actions">
+              <button class="btn icon up" title="上移">↑</button>
+              <button class="btn icon down" title="下移">↓</button>
+              <button class="btn icon danger del-entry" title="删除该条改动">✕</button>
+            </div>
+          </div>
+          <textarea class="entry-desc" rows="3" placeholder="填写具体的改动要求与说明；可直接粘贴文字和图片（图片自动加入下方图组）"></textarea>
+          <div class="photo-grid"></div>
+          <div class="entry-photo-actions">
+            <label class="btn ghost photo-btn">
+              📷 拍照 / 选图
+              <input type="file" accept="image/*" multiple class="photo-input">
+            </label>
+            <label class="btn ghost photo-btn cam-only">
+              📸 相机拍摄
+              <input type="file" accept="image/*" capture="environment" class="photo-input-cam">
+            </label>
+          </div>
+        </div>
+      </template>
+
+      <template id="tplPhoto">
+        <figure class="photo-card">
+          <div class="photo-img-wrap">
+            <img alt="">
+            <button class="btn icon photo-del" title="删除图片">✕</button>
+            <button class="btn icon photo-anno" title="放大并标注编辑（双击图片也可）">✏️ 标注</button>
+          </div>
+          <textarea class="photo-caption" rows="2" placeholder="图片文字说明（将显示在图片下方）"></textarea>
+        </figure>
+      </template>
+    </div>
+    <div class="step-footer">
+      <button class="btn ghost prev-step" data-goto="meta">← 上一步</button>
+      <button class="btn primary next-step" data-goto="shandong">下一步：山东评审 →</button>
+    </div>
+  </section>
+
+  <!-- ═══════════ 第3步：山东评审 ═══════════ -->
+  <section class="step-panel" id="panel-shandong">
+    <div class="card">
+      <h2 class="card-title">导入山东技术评审意见</h2>
+      <p class="card-desc">方式一：导入山东技术样品评审报告 Word 文档（.docx），自动去除其中所有表格，仅保留文本与图片，并统一为山东报告标准格式。方式二：直接在下方编辑区粘贴外部复制的文字和图片，导出时自动统一格式。</p>
+      <div class="import-zone" id="importZone">
+        <label class="btn primary big-btn">
+          📄 选择 Word 文档（.docx）
+          <input type="file" accept=".docx" id="docInput">
+        </label>
+        <p class="import-tip">获取途径：用部门邮箱搜索「山东技术样品评审报告」，或在宜搭系统《实木技术样品跟进》下载</p>
+      </div>
+      <div id="importStatus" class="import-status"></div>
+      <div class="shandong-editor-wrap" id="sdEditorWrap" hidden>
+        <div class="sd-editor-head">
+          <h3>山东评审内容（可直接编辑，支持粘贴文字与图片）</h3>
+          <div>
+            <button class="btn ghost" id="btnReimport">重新导入</button>
+            <button class="btn ghost danger" id="btnClearSd">移除评审内容</button>
+          </div>
+        </div>
+        <div class="doc-page editable" id="sdEditor" contenteditable="true"></div>
+      </div>
+    </div>
+    <div class="step-footer">
+      <button class="btn ghost prev-step" data-goto="shanghai">← 上一步</button>
+      <button class="btn primary next-step" data-goto="preview">下一步：合并导出 →</button>
+    </div>
+  </section>
+
+  <!-- ═══════════ 第4步：合并导出 ═══════════ -->
+  <section class="step-panel" id="panel-preview">
+    <div class="card">
+      <div class="card-head-row">
+        <div>
+          <h2 class="card-title">合并预览与导出</h2>
+          <p class="card-desc">看样改动报告与山东评审意见已合并为一份完整文档，可直接保存为 Word 或导出 PDF。</p>
+        </div>
+      </div>
+      <div class="export-bar">
+        <button class="btn primary big-btn" id="btnSaveDocx">💾 保存为 Word 文档</button>
+        <button class="btn ghost big-btn" id="btnExportPdf">🖨 导出 PDF（打印）</button>
+      </div>
+      <p class="pdf-hint">💡 PDF 颜色提示：打印窗口中请选择「彩色」并勾选「背景图形」，文档标题与类别栏将保留彩色样式。</p>
+      <div class="preview-scroll">
+        <div class="doc-page" id="docPreview"></div>
+      </div>
+    </div>
+    <div class="step-footer">
+      <button class="btn ghost prev-step" data-goto="shandong">← 上一步</button>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<!-- 图片标注编辑器 -->
+<div class="anno-overlay" id="annoOverlay" hidden>
+  <div class="anno-toolbar">
+    <button class="btn tool-btn active" data-tool="arrow">➤ 箭头</button>
+    <button class="btn tool-btn" data-tool="circle">◯ 圆圈</button>
+    <button class="btn tool-btn" data-tool="pen">✎ 画笔</button>
+    <label class="anno-color-wrap">颜色 <input type="color" id="annoColor" value="#e60000"></label>
+    <button class="btn" id="annoUndo">↩ 撤销</button>
+    <span class="anno-spacer"></span>
+    <button class="btn" id="annoCancel">取消</button>
+    <button class="btn primary" id="annoSave">✓ 保存到图片</button>
+  </div>
+  <div class="anno-canvas-wrap"><canvas id="annoCanvas"></canvas></div>
+</div>
+
+<script src="vendor/mammoth.browser.min.js"></script>
+<script src="vendor/docx.iife.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

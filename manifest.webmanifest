@@ -1,0 +1,10 @@
+{
+  "name": "家具改动报告工作台",
+  "short_name": "改动报告",
+  "description": "上海看样改动报告编写、山东评审意见导入与合并导出 Word/PDF",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4f6f9",
+  "theme_color": "#1f4e79",
+  "lang": "zh-CN"
+}
