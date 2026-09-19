@@ -4,6 +4,11 @@
    ═══════════════════════════════════════════════ */
 "use strict";
 
+/* ═══ 版本与全局错误提示 ═══
+   手机浏览器没有控制台，脚本一旦出错界面就“点了没反应”，这里把错误直接弹 toast 方便排查 */
+const APP_VERSION = "v14";
+window.addEventListener("error", e => { try { toast("脚本错误：" + (e.message || e.type) + "（请刷新页面或清缓存）", true); } catch (_) {} });
+
 /* ───────── 状态 ───────── */
 const defaultState = () => ({
   meta: { type: "样品改动", newCode: "", spu: "", material: "", channel: "", product: "", date: today(), dept: "产品设计部" },
@@ -29,6 +34,13 @@ function toast(msg, isErr) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (t.className = "toast"), 2600);
 }
+
+/* 「＋ 添加新增改动」「＋ 添加改动类别」用事件委托绑定在最顶层：
+   即使页面其他部分脚本出错，这两个按钮也始终可用 */
+document.addEventListener("click", e => {
+  if (e.target.closest("#btnAddNewChange")) { addNewChange(); return; }
+  if (e.target.closest("#btnAddSection")) { addSection(); }
+});
 
 /* ───────── IndexedDB 草稿 ───────── */
 const DB_NAME = "furniture-report-db", STORE = "draft";
@@ -260,7 +272,7 @@ function buildNcCard(nc) {
   return node;
 }
 
-document.getElementById("btnAddNewChange").addEventListener("click", () => {
+function addNewChange() {
   /* 类别每节选一次：已有两个类别时提示；否则新建未使用的类别分节并附一条空改动 */
   const used = [...ncGroups().keys()];
   if (used.length >= NC_CATS.length) { toast("「大货改动」与「重新打样」类别均已存在，请在对应类别下方点「＋ 添加一条改动」", true); return; }
@@ -271,7 +283,7 @@ document.getElementById("btnAddNewChange").addEventListener("click", () => {
   const last = cards[cards.length - 1];
   last?.querySelector(".nc-card .nc-title-input")?.focus();
   toast(`已创建「${cat}」类别，同一类别下的改动直接点节内「＋ 添加一条改动」`);
-});
+}
 
 /* ───────── 第2步：看样改动 ───────── */
 const tplSection = document.getElementById("tplSection");
@@ -517,12 +529,12 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape" && !annoOverlay.hidden) closeAnno();
 });
 
-document.getElementById("btnAddSection").addEventListener("click", () => {
+function addSection() {
   const used = new Set(state.sections.map(s => s.category));
   const def = ["实木改动", "软包改动", "五金改动", "结构改动", "其他改动"].find(c => !used.has(c)) || "其他改动";
   state.sections.push({ id: uid(), category: def, entries: [] });
   renderSections(); scheduleSave();
-});
+}
 
 /* 图片压缩：最长边 1600px，JPEG 0.85 */
 function compressImage(file, maxSide = 1600, quality = 0.85) {
@@ -1144,6 +1156,8 @@ document.getElementById("btnClearDraft").addEventListener("click", async () => {
 
 /* ───────── 初始化 ───────── */
 (async function init() {
+  const verEl = document.getElementById("appVer");
+  if (verEl) verEl.textContent = APP_VERSION;
   await loadDraft();
   bindMeta();
   if (state.sdHtml) { sdEditor.innerHTML = state.sdHtml; sdEditorWrap.hidden = false; importStatus.textContent = "✓ 已恢复上次导入的评审内容"; importStatus.classList.add("ok"); }

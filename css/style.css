@@ -192,7 +192,6 @@ textarea { resize: vertical; min-height: 64px; }
   max-width: 100%; max-height: 100%;
 }
 
-.pdf-hint { font-size: 13px; color: var(--text-2); margin: -6px 0 14px; }
 .photo-caption {
   border: none; border-top: 1px solid var(--border); border-radius: 0;
   font-size: 13px; min-height: 52px; padding: 8px 10px; background: #fffdf5;
@@ -264,8 +263,9 @@ textarea { resize: vertical; min-height: 64px; }
 .doc-meta-table td { padding: 6pt 10pt; vertical-align: middle; }
 .doc-empty { text-align: center; color: #98a5b3; padding: 40pt 0; }
 
-/* ═══════════ 步骤页脚 ═══════════ */
-.step-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.app-ver { font-size: 12px; color: rgba(255,255,255,.65); align-self: center; white-space: nowrap; }
+
+/* ═══════════ 步骤页脚 ═══════════ */.step-footer { display: flex; justify-content: space-between; gap: 10px; margin-top: 4px; }
 .step-footer .btn { min-width: 140px; }
 .export-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 
