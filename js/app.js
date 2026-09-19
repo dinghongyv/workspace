@@ -7,7 +7,7 @@
 /* ───────── 状态 ───────── */
 const defaultState = () => ({
   meta: { type: "样品改动", newCode: "", spu: "", material: "", channel: "", product: "", date: today(), dept: "产品设计部" },
-  newChanges: [],           // [{id, date, text}]
+  newChanges: [],           // [{id, date, text, photos:[{id,src,caption}]}]
   sections: [],             // [{id, category, entries:[{id,title,desc,photos:[{id,src,caption}]}]}]
   sdHtml: ""                // 山东评审 HTML
 });
@@ -72,6 +72,11 @@ async function loadDraft() {
         state.meta.newCode = state.meta.spu;
         state.meta.spu = "";
       }
+      /* 兼容旧草稿：新增改动条目补 photos 数组与类别 */
+      (state.newChanges || []).forEach(nc => {
+        if (!Array.isArray(nc.photos)) nc.photos = [];
+        if (!nc.category) nc.category = "大货改动";
+      });
     }
   } catch (e) { console.warn("读取草稿失败", e); }
 }
@@ -81,7 +86,7 @@ async function clearDraft() {
 }
 
 /* ───────── 步骤导航 ───────── */
-const STEP_ORDER = ["meta", "shanghai", "shandong", "preview"];
+const STEP_ORDER = ["meta", "newchange", "shanghai", "shandong", "preview"];
 function gotoStep(step) {
   document.querySelectorAll(".step-panel").forEach(p => p.classList.remove("active"));
   document.getElementById("panel-" + step).classList.add("active");
@@ -97,6 +102,7 @@ document.addEventListener("click", e => {
 function updateStepDone() {
   const done = {
     meta: !!(state.meta.newCode || state.meta.spu || state.meta.product),
+    newchange: state.newChanges.length > 0,
     shanghai: state.sections.some(s => s.entries.length),
     shandong: !!state.sdHtml
   };
@@ -115,35 +121,156 @@ function bindMeta() {
   if (!state.meta.date) state.meta.date = todayISO();
 }
 
-/* 新增改动 */
-function renderNewChanges() {
-  const list = document.getElementById("newChangeList");
-  list.innerHTML = "";
-  state.newChanges.forEach((nc, i) => {
-    const div = document.createElement("div");
-    div.className = "nc-item";
-    div.innerHTML = `
-      <span class="nc-date">${esc(fmtDate(nc.date))}</span>
-      <div class="nc-text">${esc(nc.text).replace(/\n/g, "<br>")}</div>
-      <div class="row-actions">
-        <button class="btn icon danger" data-del-nc="${i}" title="删除">✕</button>
-      </div>`;
-    list.appendChild(div);
+/* 新增改动（大货 / 重新打样）：按类别分节，类别每节选一次；卡片支持图组、拍照/选图、粘贴 */
+const tplNc = document.getElementById("tplNc");
+const NC_CATS = ["大货改动", "重新打样"];
+
+/* 按类别分组（保持首次出现顺序） */
+function ncGroups() {
+  const map = new Map();
+  state.newChanges.forEach(nc => {
+    const cat = nc.category || "大货改动";
+    if (!map.has(cat)) map.set(cat, []);
+    map.get(cat).push(nc);
   });
+  return map;
 }
+
+function renderNewChanges() {
+  const list = document.getElementById("ncGroupList");
+  list.innerHTML = "";
+  document.getElementById("ncEmptyTip").hidden = state.newChanges.length > 0;
+  ncGroups().forEach((items, cat) => {
+    const sec = document.createElement("div");
+    sec.className = "sh-section";
+
+    const head = document.createElement("div");
+    head.className = "sh-section-head";
+    head.innerHTML = `
+      <label class="field inline"><span>类别</span>
+        <select class="nc-cat-select">${NC_CATS.map(c => `<option${c === cat ? " selected" : ""}>${c}</option>`).join("")}</select>
+      </label>
+      <div class="row-actions"><button class="btn icon danger nc-del-section" title="删除该类别下所有改动">✕</button></div>`;
+    head.querySelector(".nc-cat-select").addEventListener("change", e => {
+      const target = e.target.value;
+      if (ncGroups().has(target)) { toast(`「${target}」类别已存在，请先删除或合并后再切换`, true); renderNewChanges(); return; }
+      items.forEach(nc => { nc.category = target; });
+      renderNewChanges(); scheduleSave();
+    });
+    head.querySelector(".nc-del-section").addEventListener("click", () => {
+      if (!confirm(`确定删除「${cat}」类别下全部 ${items.length} 条改动？`)) return;
+      state.newChanges = state.newChanges.filter(nc => nc.category !== cat);
+      renderNewChanges(); scheduleSave(); updateStepDone();
+    });
+    sec.appendChild(head);
+
+    const entryList = document.createElement("div");
+    entryList.className = "entry-list";
+    items.forEach(nc => entryList.appendChild(buildNcCard(nc)));
+    sec.appendChild(entryList);
+
+    const addBtn = document.createElement("button");
+    addBtn.className = "btn ghost add-entry";
+    addBtn.textContent = "＋ 添加一条改动";
+    addBtn.addEventListener("click", () => {
+      state.newChanges.push({ id: uid(), category: cat, date: todayISO(), title: "", text: "", photos: [] });
+      renderNewChanges(); scheduleSave();
+      const cards = list.querySelectorAll(".sh-section");
+      for (const s of cards) {
+        const sel = s.querySelector(".nc-cat-select");
+        if (sel && sel.value === cat) {
+          const titles = s.querySelectorAll(".nc-card .nc-title-input");
+          titles[titles.length - 1]?.focus();
+          break;
+        }
+      }
+    });
+    sec.appendChild(addBtn);
+
+    list.appendChild(sec);
+  });
+  updateStepDone();
+}
+
+function buildNcCard(nc) {
+  const node = tplNc.content.cloneNode(true);
+  const titleEl = node.querySelector(".nc-title-input");
+  const textEl = node.querySelector(".nc-content-text");
+  titleEl.value = nc.title || "";
+  titleEl.addEventListener("input", () => { nc.title = titleEl.value; scheduleSave(); renderPreviewDebounced(); });
+  textEl.value = nc.text || "";
+  textEl.addEventListener("input", () => { nc.text = textEl.value; scheduleSave(); renderPreviewDebounced(); });
+  node.querySelector(".nc-del").addEventListener("click", () => {
+    if (!confirm("确定删除该条新增改动？")) return;
+    const idx = state.newChanges.indexOf(nc);
+    if (idx > -1) state.newChanges.splice(idx, 1);
+    renderNewChanges(); scheduleSave();
+  });
+
+  const grid = node.querySelector(".photo-grid");
+  nc.photos.forEach(ph => grid.appendChild(buildPhoto(ph, nc, grid)));
+  /* 与看样改动一致：2-3 张图片自动缩小并排同一行 */
+  const applyPhotoCols = () => {
+    const n = nc.photos.length;
+    grid.style.gridTemplateColumns = (n >= 2 && n <= 3) ? "repeat(" + n + ", minmax(0, 1fr))" : "";
+  };
+  applyPhotoCols();
+
+  /* 粘贴文字与图片：文字入输入框，图片自动加入图组（与看样改动说明框规则一致） */
+  textEl.addEventListener("paste", async e => {
+    const cd = e.clipboardData;
+    if (!cd) return;
+    const imgItems = [...cd.items].filter(it => it.type.startsWith("image/"));
+    if (!imgItems.length) return;
+    e.preventDefault();
+    const text = cd.getData("text/plain") || "";
+    if (text) {
+      const s = textEl.selectionStart ?? textEl.value.length;
+      const t = textEl.selectionEnd ?? textEl.value.length;
+      textEl.setRangeText(text, s, t, "end");
+      nc.text = textEl.value;
+    }
+    let n = 0;
+    for (const it of imgItems) {
+      const f = it.getAsFile();
+      if (!f) continue;
+      try {
+        const src = await compressImage(f);
+        nc.photos.push({ id: uid(), src, caption: "" });
+        n++;
+      } catch (err) { /* 忽略 */ }
+    }
+    renderNewChanges(); scheduleSave();
+    toast(n ? `已粘贴 ${n} 张图片，请为图片补充文字说明` : "已粘贴内容");
+  });
+
+  const handleFiles = async files => {
+    for (const f of files) {
+      if (!f.type.startsWith("image/")) continue;
+      try {
+        const src = await compressImage(f);
+        nc.photos.push({ id: uid(), src, caption: "" });
+      } catch (err) { toast("图片处理失败：" + f.name, true); }
+    }
+    renderNewChanges(); scheduleSave();
+    toast("图片已添加，请为每张图片填写文字说明");
+  };
+  node.querySelector(".photo-input").addEventListener("change", e => { handleFiles(e.target.files); e.target.value = ""; });
+  node.querySelector(".photo-input-cam").addEventListener("change", e => { handleFiles(e.target.files); e.target.value = ""; });
+  return node;
+}
+
 document.getElementById("btnAddNewChange").addEventListener("click", () => {
-  const dateEl = document.getElementById("ncDate");
-  const textEl = document.getElementById("ncContent");
-  const text = textEl.value.trim();
-  if (!text) { toast("请先填写新增改动内容", true); return; }
-  state.newChanges.unshift({ id: uid(), date: dateEl.value || todayISO(), text });
-  textEl.value = "";
-  renderNewChanges(); scheduleSave(); updateStepDone();
-  toast("已添加，最新改动呈现在最前端");
-});
-document.getElementById("newChangeList").addEventListener("click", e => {
-  const b = e.target.closest("[data-del-nc]");
-  if (b) { state.newChanges.splice(+b.dataset.delNc, 1); renderNewChanges(); scheduleSave(); }
+  /* 类别每节选一次：已有两个类别时提示；否则新建未使用的类别分节并附一条空改动 */
+  const used = [...ncGroups().keys()];
+  if (used.length >= NC_CATS.length) { toast("「大货改动」与「重新打样」类别均已存在，请在对应类别下方点「＋ 添加一条改动」", true); return; }
+  const cat = NC_CATS.find(c => !used.includes(c));
+  state.newChanges.push({ id: uid(), category: cat, date: todayISO(), title: "", text: "", photos: [] });
+  renderNewChanges(); scheduleSave();
+  const cards = document.querySelectorAll("#ncGroupList .sh-section");
+  const last = cards[cards.length - 1];
+  last?.querySelector(".nc-card .nc-title-input")?.focus();
+  toast(`已创建「${cat}」类别，同一类别下的改动直接点节内「＋ 添加一条改动」`);
 });
 
 /* ───────── 第2步：看样改动 ───────── */
@@ -619,15 +746,34 @@ function renderPreview() {
   parts.push(`<p class="doc-title">${esc(buildReportTitle())}</p>`);
   /* 部门/日期信息只在文档末尾表格中体现，标题下方不再重复显示 */
 
-  if (state.newChanges.length) {
-    parts.push(`<h2>新增改动</h2>`);
-    state.newChanges.forEach(nc => {
-      parts.push(`<h3>新增改动${esc(fmtDate(nc.date))}</h3>`);
-      parts.push(`<p>${esc(nc.text).replace(/\n/g, "<br>")}</p>`);
-    });
-  }
-
   const tableRows = [];
+
+  /* 新增/重打（大货改动、重新打样）：并入表格，同一类别+日期的多条内容合并到同一单元格 */
+  const ncGroups = new Map(); /* key: category|date -> {category, date, items:[]} */
+  state.newChanges.forEach(nc => {
+    const cat = nc.category || "大货改动";
+    const date = fmtDate(nc.date || todayISO());
+    const key = cat + "|" + date;
+    if (!ncGroups.has(key)) ncGroups.set(key, { cat, date, items: [] });
+    ncGroups.get(key).items.push(nc);
+  });
+  ncGroups.forEach(g => {
+    const cells = [];
+    let n = 0;
+    g.items.forEach(nc => {
+      const block = [];
+      if (nc.title) block.push(`<p><b>${++n}. ${esc(nc.title)}</b></p>`);
+      if (nc.text) block.push(`<p>${esc(nc.text).replace(/\n/g, "<br>")}</p>`);
+      (nc.photos || []).forEach((ph, pi) => {
+        const cap = ph.caption ? esc(ph.caption) : `图${pi + 1}`;
+        block.push(`<figure><img src="${ph.src}" alt=""><figcaption>▲ ${cap}</figcaption></figure>`);
+      });
+      if (block.length) cells.push(...block); /* 空条目自动跳过，不占编号 */
+    });
+    if (!cells.length) return;
+    const label = `${esc(g.cat)}<br>${esc(g.date)}`;
+    tableRows.push(`<tr><td class="doc-label">${label}</td><td class="doc-content" colspan="3">${cells.join("")}</td></tr>`);
+  });
 
   /* 上海评审——看样改动：每行一个类别 */
   if (hasShanghai) {
@@ -1000,7 +1146,6 @@ document.getElementById("btnClearDraft").addEventListener("click", async () => {
 (async function init() {
   await loadDraft();
   bindMeta();
-  document.getElementById("ncDate").value = todayISO();
   if (state.sdHtml) { sdEditor.innerHTML = state.sdHtml; sdEditorWrap.hidden = false; importStatus.textContent = "✓ 已恢复上次导入的评审内容"; importStatus.classList.add("ok"); }
   renderNewChanges();
   renderSections();

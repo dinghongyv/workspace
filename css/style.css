@@ -119,16 +119,17 @@ textarea { resize: vertical; min-height: 64px; }
 .field.inline select { width: auto; min-width: 130px; }
 
 /* ═══════════ 新增改动 ═══════════ */
-.new-change-add { display: flex; flex-direction: column; gap: 10px; }
-.new-change-list { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
-.nc-item {
-  display: flex; gap: 10px; align-items: flex-start;
-  background: var(--primary-light); border: 1px solid #d4e2ef;
-  border-radius: 10px; padding: 12px 14px;
+.nc-card {
+  border: 1px dashed var(--border); border-radius: 10px;
+  padding: 14px; background: var(--primary-light);
+  display: flex; flex-direction: column; gap: 10px;
 }
-.nc-item .nc-date { font-weight: 700; color: var(--primary); white-space: nowrap; font-size: 13px; padding-top: 2px; }
-.nc-item .nc-text { flex: 1; font-size: 14px; }
-.nc-item .row-actions { margin-left: 4px; }
+.nc-card-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.nc-card .nc-title-input {
+  flex: 1; min-width: 160px; font-weight: 700; color: var(--primary);
+}
+.sh-section .nc-cat-select { font-weight: 700; color: var(--primary); }
+#ncEmptyTip { margin-top: 8px; }
 
 /* ═══════════ 上海看样 分节 ═══════════ */
 .section-list { display: flex; flex-direction: column; gap: 16px; margin-bottom: 12px; }

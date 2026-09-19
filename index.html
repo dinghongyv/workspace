@@ -26,9 +26,10 @@
 
 <nav class="step-nav" id="stepNav">
   <button class="step-btn active" data-step="meta"><span class="step-num">1</span><span>产品信息</span></button>
-  <button class="step-btn" data-step="shanghai"><span class="step-num">2</span><span>看样改动</span></button>
-  <button class="step-btn" data-step="shandong"><span class="step-num">3</span><span>山东评审</span></button>
-  <button class="step-btn" data-step="preview"><span class="step-num">4</span><span>合并导出</span></button>
+  <button class="step-btn" data-step="newchange"><span class="step-num">2</span><span>新增/重打</span></button>
+  <button class="step-btn" data-step="shanghai"><span class="step-num">3</span><span>看样改动</span></button>
+  <button class="step-btn" data-step="shandong"><span class="step-num">4</span><span>山东评审</span></button>
+  <button class="step-btn" data-step="preview"><span class="step-num">5</span><span>合并导出</span></button>
   <span class="save-hint" id="saveHint"></span>
 </nav>
 
@@ -78,22 +79,31 @@
         </label>
       </div>
     </div>
+    <div class="step-footer">
+      <button class="btn primary next-step" data-goto="newchange">下一步：新增改动 →</button>
+    </div>
+  </section>
+
+  <!-- ═══════════ 第2步：新增改动（大货 / 重新打样） ═══════════ -->
+  <section class="step-panel" id="panel-newchange">
     <div class="card">
-      <h2 class="card-title">新增改动（大货 / 重新打样）</h2>
-      <p class="card-desc">最新改动会呈现在最前端，标题自动附上日期。首次编写可跳过。</p>
-      <div class="new-change-add">
-        <input id="ncDate" type="date">
-        <textarea id="ncContent" rows="3" placeholder="填写新增的改动内容：说明清楚是下一批大货更改还是马上更改（如有具体更改批次请附上）"></textarea>
+      <div class="card-head-row">
+        <div>
+          <h2 class="card-title">新增改动（大货 / 重新打样）</h2>
+          <p class="card-desc">按类别分节记录（大货改动 / 重新打样），同一类别只需在节首选择一次；每条改动可上传/拍摄图片并逐图配文字说明，也可直接粘贴文字与图片。</p>
+        </div>
         <button class="btn primary" id="btnAddNewChange">＋ 添加新增改动</button>
       </div>
-      <div id="newChangeList" class="new-change-list"></div>
+      <div id="ncGroupList" class="section-list"></div>
+      <p class="card-desc" id="ncEmptyTip" hidden>暂无新增改动 —— 点击右上角「＋ 添加新增改动」开始记录。</p>
     </div>
     <div class="step-footer">
+      <button class="btn ghost prev-step" data-goto="meta">← 上一步</button>
       <button class="btn primary next-step" data-goto="shanghai">下一步：看样改动 →</button>
     </div>
   </section>
 
-  <!-- ═══════════ 第2步：看样改动 ═══════════ -->
+  <!-- ═══════════ 第3步：看样改动 ═══════════ -->
   <section class="step-panel" id="panel-shanghai">
     <div class="card">
       <div class="card-head-row">
@@ -127,6 +137,29 @@
           </div>
           <div class="entry-list"></div>
           <button class="btn ghost add-entry">＋ 添加一条改动</button>
+        </div>
+      </template>
+
+      <template id="tplNc">
+        <div class="nc-card">
+          <div class="nc-card-head">
+            <input class="nc-title-input" type="text" placeholder="改动标题（例：大货要求滑轨使用黑色阻尼滑轨）">
+            <div class="row-actions">
+              <button class="btn icon danger nc-del" title="删除该条新增改动">✕</button>
+            </div>
+          </div>
+          <textarea class="nc-content-text" rows="3" placeholder="填写新增的改动内容：说明清楚是下一批大货更改还是马上更改（如有具体更改批次请附上）；可直接粘贴文字和图片（图片自动加入下方图组）"></textarea>
+          <div class="photo-grid"></div>
+          <div class="entry-photo-actions">
+            <label class="btn ghost photo-btn">
+              🖼 选图
+              <input type="file" accept="image/*" multiple class="photo-input">
+            </label>
+            <label class="btn ghost photo-btn cam-only">
+              📷 拍照
+              <input type="file" accept="image/*" capture="environment" class="photo-input-cam">
+            </label>
+          </div>
         </div>
       </template>
 
@@ -167,12 +200,12 @@
       </template>
     </div>
     <div class="step-footer">
-      <button class="btn ghost prev-step" data-goto="meta">← 上一步</button>
+      <button class="btn ghost prev-step" data-goto="newchange">← 上一步</button>
       <button class="btn primary next-step" data-goto="shandong">下一步：山东评审 →</button>
     </div>
   </section>
 
-  <!-- ═══════════ 第3步：山东评审 ═══════════ -->
+  <!-- ═══════════ 第4步：山东评审 ═══════════ -->
   <section class="step-panel" id="panel-shandong">
     <div class="card">
       <h2 class="card-title">导入山东技术评审意见</h2>
@@ -202,7 +235,7 @@
     </div>
   </section>
 
-  <!-- ═══════════ 第4步：合并导出 ═══════════ -->
+  <!-- ═══════════ 第5步：合并导出 ═══════════ -->
   <section class="step-panel" id="panel-preview">
     <div class="card">
       <div class="card-head-row">
